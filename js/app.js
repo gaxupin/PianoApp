@@ -11,7 +11,9 @@ const PROFILES = {
 
 /* ---------------- Estado ---------------- */
 const S = {
-  song: null, mode: 'listen', hands: 'both', view: 'fall', names: 'es',
+  song: null, mode: 'listen', hands: 'both',
+  view: ['fall','staff','both'].includes(Progress.data.view) ? Progress.data.view : 'fall',
+  names: 'es',
   prof: Progress.data.prof || 'junior',
   // Sonido de la app para las teclas que tocas por MIDI. Apagado por defecto:
   // un piano conectado ya suena por sus altavoces y duplicarlo con el retardo
@@ -313,8 +315,10 @@ function setHands(h){
 }
 function setView(v){
   S.view = v;
+  Progress.data.view = v; Progress.save();
   $$('#viewTabs button').forEach(b => b.classList.toggle('sel', b.dataset.v === v));
   toast(v === 'staff' ? 'Vista de partitura: lee las notas en el pentagrama 🎼'
+      : v === 'both'  ? 'Vista mixta: partitura arriba y cascada abajo 🎼🌊'
                       : 'Vista cascada: las notas caen hacia las teclas 🌊');
 }
 function updLoopUI(){
@@ -452,6 +456,14 @@ $('#profSel').onchange = e => {
       : 'Modo Avanzado: precisión de concertista 🚀');
 };
 $('#trophyBtn').onclick = openProgress;
+$('#fsBtn').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => toast('Pantalla completa no disponible aquí'));
+};
+document.addEventListener('fullscreenchange', () => {
+  $('#fsBtn').textContent = document.fullscreenElement ? '🗗' : '⛶';
+  resize();
+});
 $('#pmClose').onclick = () => $('#progressModal').style.display = 'none';
 $('#progressModal').addEventListener('pointerdown', e => { if (e.target === e.currentTarget) e.currentTarget.style.display = 'none'; });
 $('#ovAgain').onclick = () => { resetRun(S.loopA || 0); togglePlay(true); };
@@ -469,6 +481,7 @@ $('#songSel').onchange = e => {
 };
 
 /* ---------------- Arranque ---------------- */
+$$('#viewTabs button').forEach(b => b.classList.toggle('sel', b.dataset.v === S.view));
 rebuildSongSelect();
 setSong(LIBRARY[0]);
 initMidi({
