@@ -163,6 +163,8 @@ function userPress(m, vel = 0.8, fromMidi = false){
   // Por MIDI, el sonido lo pone el propio piano salvo que se active el de la app
   if (!fromMidi || S.midiSound) synthOn(m, vel);
   S.pressed.add(m);
+  // en modo composición, las teclas insertan notas en la partitura
+  if (typeof Composer !== 'undefined' && Composer.active){ Composer.notePress(m); return; }
   if (!S.song) return;
   if (S.mode === 'wait' && S.waiting){
     if (S.required.has(m) && !S.required.get(m)){
@@ -197,7 +199,10 @@ function userPress(m, vel = 0.8, fromMidi = false){
     updHud();
   }
 }
-function userRelease(m){ S.pressed.delete(m); releaseNote(m); }
+function userRelease(m){
+  S.pressed.delete(m); releaseNote(m);
+  if (typeof Composer !== 'undefined' && Composer.active) Composer.noteRelease(m);
+}
 
 function addFx(m, txt, color){
   const k = KEYS.find(k => k.m === m);
