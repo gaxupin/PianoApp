@@ -66,6 +66,23 @@ function draw(){
   }
   S.fx = S.fx.filter(f => f.age < 0.9);
 
+  // cuenta de entrada (4… 3… 2… 1)
+  if (S.countdown){
+    const c = S.countdown;
+    const remaining = Math.max(1, Math.ceil(c.beats - c.t / c.period));
+    const cx = CW / 2, cy = KBTOP * 0.45;
+    const pulse = 1 - (c.t % c.period) / c.period;       // encoge dentro de cada pulso
+    ctx.fillStyle = 'rgba(10,8,20,0.45)';
+    ctx.beginPath(); ctx.arc(cx, cy, 56, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,194,75,0.9)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(cx, cy, 42 + 14 * pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#FFC24B';
+    ctx.font = '800 56px "Baloo 2", Nunito, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(remaining, cx, cy + 3);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
   // HUD de tiempo
   $('#tNow').textContent = fmt(S.t);
   if (S.song) $('#barFill').style.width = (100 * clamp(S.t / S.song.duration, 0, 1)) + '%';
@@ -164,6 +181,10 @@ function drawStaff(sounding){
     ctx.beginPath(); ctx.moveTo(0, y1); ctx.lineTo(CW, y1); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, y2); ctx.lineTo(CW, y2); ctx.stroke();
   }
+  // barra que une ambos pentagramas (sistema de piano)
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(1, trebleTop); ctx.lineTo(1, bassBottom); ctx.stroke();
+  ctx.lineWidth = 1;
 
   // claves
   ctx.fillStyle = '#2A2840';

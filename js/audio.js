@@ -49,6 +49,18 @@ function synthOff(m, hard = false){
 
 function releaseNote(m){ if (pedalDown){ sustained.add(m); } else synthOff(m); }
 
+// Clic de metrónomo y cuenta de entrada (acentuado en el primer pulso del compás)
+function clickSound(accent){
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = 'square'; o.frequency.value = accent ? 1568 : 1175;
+  g.gain.setValueAtTime(accent ? 0.22 : 0.14, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + 0.08);
+}
+
 function setPedal(d){
   pedalDown = d;
   $('#pedalLamp').classList.toggle('on', d);
