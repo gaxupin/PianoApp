@@ -13,6 +13,10 @@ const PROFILES = {
 const S = {
   song: null, mode: 'listen', hands: 'both', view: 'fall', names: 'es',
   prof: Progress.data.prof || 'junior',
+  // Sonido de la app para las teclas que tocas por MIDI. Apagado por defecto:
+  // un piano conectado ya suena por sus altavoces y duplicarlo con el retardo
+  // del navegador se percibe como eco/distorsión.
+  midiSound: Progress.data.midiSound === true,
   playing: false, t: 0, rate: 1,
   score: 0, combo: 0, maxCombo: 0, hits: 0, perfect: 0, misses: 0, missLog: [],
   gates: [], gi: 0, waiting: false, required: new Map(), // midi -> ok
@@ -117,8 +121,11 @@ function step(dt){
   if (S.t > S.song.duration + 0.8) finish();
 }
 
-function userPress(m, vel = 0.8){
-  audio(); synthOn(m, vel); S.pressed.add(m);
+function userPress(m, vel = 0.8, fromMidi = false){
+  audio();
+  // Por MIDI, el sonido lo pone el propio piano salvo que se active el de la app
+  if (!fromMidi || S.midiSound) synthOn(m, vel);
+  S.pressed.add(m);
   if (!S.song) return;
   if (S.mode === 'wait' && S.waiting){
     if (S.required.has(m) && !S.required.get(m)){
@@ -353,6 +360,18 @@ $('#nameBtn').onclick = () => {
   S.names = S.names === 'es' ? 'en' : S.names === 'en' ? 'off' : 'es';
   $('#nameBtn').textContent = S.names === 'es' ? '♪ Do-Re-Mi' : S.names === 'en' ? '♪ C-D-E' : '♪ sin nombres';
 };
+function updSndBtn(){
+  $('#sndBtn').textContent = S.midiSound ? '🔊 Teclas: app + piano' : '🔇 Teclas: solo tu piano';
+}
+$('#sndBtn').onclick = () => {
+  S.midiSound = !S.midiSound;
+  Progress.data.midiSound = S.midiSound; Progress.save();
+  updSndBtn();
+  toast(S.midiSound
+    ? 'Tus teclas MIDI también sonarán por la app 🔊 (baja el volumen del piano si se duplica)'
+    : 'Tus teclas suenan solo por tu piano; la app pone el acompañamiento 🎹');
+};
+updSndBtn();
 $('#profSel').value = S.prof;
 $('#profSel').onchange = e => {
   S.prof = e.target.value;
@@ -381,7 +400,13 @@ $('#songSel').onchange = e => {
 /* ---------------- Arranque ---------------- */
 rebuildSongSelect();
 setSong(LIBRARY[0]);
-initMidi({ press: userPress, release: userRelease, pedal: setPedal });
+initMidi({
+  press: userPress, release: userRelease, pedal: setPedal,
+  connected(){
+    if (!S.midiSound)
+      toast('Piano conectado 🎹 Tus teclas suenan por tu piano; cambia a 🔊 si prefieres el sonido de la app', 5000);
+  }
+});
 
 let last = performance.now();
 function frame(now){
