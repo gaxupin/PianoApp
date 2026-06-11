@@ -23,17 +23,24 @@ function parseMusicXML(text){
   const pedalEv = [];   // { beat, down }
   const rawNotes = [];  // { m, startBeat, beats, staffN, partIdx }
   const barBeats = [];  // inicio de cada compás, en negras
+  const measInfo = [];  // { start, num, unit } por compás (para el metrónomo)
+  let partEndBeat = 0;
 
   parts.forEach((part, pi) => {
     let divisions = 1, pos = 0, lastStart = 0;
+    let curNum = 4, curBeatType = 4;
     const open = {};    // ligaduras abiertas: midi -> nota
     for (const meas of [...part.children].filter(el => el.tagName === 'measure')){
+      const measStart = pos;
       if (pi === 0) barBeats.push(pos);
       for (const el of meas.children){
         const tag = el.tagName;
         if (tag === 'attributes'){
           const d = xmlNum(el, 'divisions');
           if (d) divisions = d;
+          const tn = xmlNum(el, 'beats'), td = xmlNum(el, 'beat-type');
+          if (tn) curNum = tn;
+          if (td) curBeatType = td;
         } else if (tag === 'direction' || tag === 'sound'){
           const snd = tag === 'sound' ? el : el.getElementsByTagName('sound')[0];
           const bpm = snd && parseFloat(snd.getAttribute('tempo'));
@@ -77,7 +84,9 @@ function parseMusicXML(text){
           if (!chord){ lastStart = pos; pos += durBeats; }
         }
       }
+      if (pi === 0) measInfo.push({ start: measStart, num: curNum, unit: 4 / curBeatType });
     }
+    if (pi === 0) partEndBeat = Math.max(partEndBeat, pos);
   });
 
   if (!rawNotes.length) throw new Error('El archivo no contiene notas.');
@@ -119,8 +128,19 @@ function parseMusicXML(text){
 
   const pedal = pedalEv.map(ev => ({ t: b2s(ev.beat), down: ev.down })).sort((a,b) => a.t - b.t);
   const bars = barBeats.map(b2s);
+
+  // Pulsos del metrónomo: subdivide cada compás según su cifra de compás
+  const clicks = [];
+  for (let i = 0; i < measInfo.length && clicks.length < 8000; i++){
+    const mi = measInfo[i];
+    const end = i + 1 < measInfo.length ? measInfo[i+1].start : partEndBeat;
+    if (mi.unit <= 0) continue;
+    for (let k = 0; mi.start + k * mi.unit < end - 1e-6 && clicks.length < 8000; k++)
+      clicks.push({ t: b2s(mi.start + k * mi.unit), accent: k === 0 });
+  }
+
   const duration = notes.reduce((mx,n) => Math.max(mx, n.start + n.dur), 0);
-  return { notes, pedal, duration, bars };
+  return { notes, pedal, duration, bars, clicks };
 }
 
 /* ---------- .mxl = MusicXML dentro de un ZIP ---------- */

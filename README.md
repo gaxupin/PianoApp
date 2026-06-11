@@ -53,10 +53,18 @@ en ese caso también puedes desactivar *Local Control* en tu piano).
   sola como acompañamiento.
 - **Transporte completo**: avanzar/retroceder, barra de progreso, tempo
   50–120 %, bucle A‑B para repetir fragmentos.
+- **Metrónomo** con acento en el primer pulso del compás (sigue la cifra de
+  compás del archivo, también en 3/4 o 3/8) y **cuenta de entrada** de 4
+  pulsos al empezar en modo Tocar.
 - **Gamificación**: puntos, combos con multiplicador, precisión, 3 estrellas,
   logros desbloqueables, racha de días y progreso guardado en el navegador.
 - **Análisis al terminar**: detecta el tramo con más fallos y ofrece
-  practicarlo en bucle en modo Espera.
+  practicarlo en bucle en modo Espera; si una mano falla bastante más que
+  la otra, sugiere practicarla por separado.
+- **Repertorio incluido**: Himno de la Alegría, Para Elisa, Cumpleaños
+  feliz, Martinillo, Noche de paz, Minueto en Sol (Petzold), Canon de
+  Pachelbel… y ejercicios de escalas (Do y Sol), acordes, arpegios y
+  Hanon nº 1.
 - **Perfiles por edad** (🧒 Peque / 🎒 Júnior / 🚀 Avanzado): ajustan la
   tolerancia de acierto y los umbrales de estrellas.
 - **Biblioteca propia**: sube tus partituras (ver formatos).

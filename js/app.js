@@ -17,8 +17,11 @@ const S = {
   // un piano conectado ya suena por sus altavoces y duplicarlo con el retardo
   // del navegador se percibe como eco/distorsión.
   midiSound: Progress.data.midiSound === true,
+  metro: Progress.data.metro === true,
+  countdown: null,    // cuenta de entrada: { beats, period, t }
   playing: false, t: 0, rate: 1,
   score: 0, combo: 0, maxCombo: 0, hits: 0, perfect: 0, misses: 0, missLog: [],
+  handHit: { L: 0, R: 0 }, handMiss: { L: 0, R: 0 },
   gates: [], gi: 0, waiting: false, required: new Map(), // midi -> ok
   loopA: null, loopB: null,
   pressed: new Set(), fx: [], lo: 48, hi: 84, finished: false
@@ -53,8 +56,9 @@ function buildGates(){
 }
 
 function resetRun(t = 0){
-  S.t = t; S.playing = false; S.waiting = false; S.finished = false;
+  S.t = t; S.playing = false; S.waiting = false; S.finished = false; S.countdown = null;
   S.score = 0; S.combo = 0; S.maxCombo = 0; S.hits = 0; S.perfect = 0; S.misses = 0; S.missLog = [];
+  S.handHit = { L: 0, R: 0 }; S.handMiss = { L: 0, R: 0 };
   S.fx = []; S.required.clear();
   for (const n of S.song.notes){ n.hit = n.start < t; n.missed = false; }
   S.gates = buildGates();
@@ -79,10 +83,40 @@ function autoplayHand(h){
   return !activeHand(h);
 }
 
+// Duración aproximada del pulso en la posición actual (para la cuenta de entrada)
+function beatPeriodAt(t){
+  const c = S.song && S.song.clicks;
+  if (c && c.length > 1){
+    let i = c.findIndex(x => x.t >= t);
+    if (i < 1) i = i === 0 ? 1 : c.length - 1;
+    const p = c[i].t - c[i-1].t;
+    if (p > 0.2 && p < 2) return p;
+  }
+  return 0.6;
+}
+
 function step(dt){
   if (!S.playing || !S.song) return;
+
+  // cuenta de entrada: 4 pulsos de metrónomo antes de empezar a sonar
+  if (S.countdown){
+    const c = S.countdown;
+    const before = Math.floor(c.t / c.period);
+    c.t += dt;
+    const after = Math.floor(c.t / c.period);
+    if (after > before && after < c.beats) clickSound(false);
+    if (c.t >= c.beats * c.period) S.countdown = null;
+    else return;
+  }
+
   const prev = S.t;
   let next = prev + dt * S.rate;
+
+  // metrónomo
+  if (S.metro && S.song.clicks){
+    for (const c of S.song.clicks)
+      if (c.t > prev && c.t <= next) clickSound(c.accent);
+  }
 
   if (S.mode === 'wait'){
     const g = S.gates[S.gi];
@@ -110,6 +144,7 @@ function step(dt){
     for (const n of S.song.notes){
       if (!n.hit && !n.missed && activeHand(n.hand) && n.start < next - prof().missAfter){
         n.missed = true; S.misses++; S.combo = 0; S.missLog.push(n.start);
+        S.handMiss[n.hand]++;
         addFx(n.m, '✗', 'var(--danger)');
       }
     }
@@ -131,7 +166,8 @@ function userPress(m, vel = 0.8, fromMidi = false){
     if (S.required.has(m) && !S.required.get(m)){
       S.required.set(m, true);
       const g = S.gates[S.gi];
-      const n = g.notes.find(x => x.m === m); if (n) n.hit = true;
+      const n = g.notes.find(x => x.m === m);
+      if (n){ n.hit = true; S.handHit[n.hand]++; }
       S.hits++; S.combo++; S.maxCombo = Math.max(S.maxCombo, S.combo);
       S.score += 10; addFx(m, '✓', 'var(--rh)');
       if ([...S.required.values()].every(Boolean)){
@@ -149,6 +185,7 @@ function userPress(m, vel = 0.8, fromMidi = false){
     }
     if (best){
       best.hit = true; S.hits++; S.combo++; S.maxCombo = Math.max(S.maxCombo, S.combo);
+      S.handHit[best.hand]++;
       const mult = 1 + Math.min(3, Math.floor(S.combo / 10));
       if (bestD < prof().perfect){ S.perfect++; S.score += 15 * mult; addFx(m, '¡Perfecto!', 'var(--amber)'); }
       else { S.score += 10 * mult; addFx(m, '¡Bien!', 'var(--rh)'); }
@@ -197,22 +234,40 @@ function finish(){
   }
   $('#ovMsg').innerHTML = msg;
 
-  // fragmento difícil -> propone repasarlo en bucle
+  // consejos: fragmento difícil (con bucle de repaso) y mano que más falla
   const tip = $('#ovTip'), loopBtn = $('#ovLoop');
   tip.style.display = 'none'; loopBtn.style.display = 'none';
+  const tips = [];
   if (S.mode === 'play' && S.missLog.length >= 3){
     const buckets = {};
     for (const t of S.missLog){ const b = Math.floor(t / 5); buckets[b] = (buckets[b] || 0) + 1; }
     const worst = Object.entries(buckets).sort((a,b) => b[1] - a[1])[0];
     if (worst && worst[1] >= 2){
       const a = Math.max(0, worst[0] * 5 - 1), b = Math.min(S.song.duration, worst[0] * 5 + 6);
-      tip.innerHTML = `💡 Te costó el tramo <b>${fmt(a)} – ${fmt(b)}</b>. ¡Vamos a repasarlo despacio!`;
-      tip.style.display = 'block'; loopBtn.style.display = 'inline-block';
+      tips.push(`💡 Te costó el tramo <b>${fmt(a)} – ${fmt(b)}</b>. ¡Vamos a repasarlo despacio!`);
+      loopBtn.style.display = 'inline-block';
       loopBtn.onclick = () => {
         S.loopA = a; S.loopB = b; updLoopUI();
         setMode('wait'); seek(a); ov.style.display = 'none'; togglePlay(true);
       };
     }
+  }
+  if (S.mode !== 'listen' && S.hands === 'both'){
+    const accOf = h => {
+      const t2 = S.handHit[h] + S.handMiss[h];
+      return t2 >= 6 ? S.handHit[h] / t2 : null;
+    };
+    const aL = accOf('L'), aR = accOf('R');
+    if (aL != null && aR != null && Math.abs(aL - aR) >= 0.15){
+      const worse = aL < aR;
+      tips.push(`${worse ? '🤚' : '✋'} La mano ${worse ? 'izquierda' : 'derecha'} falló más ` +
+        `(<b>${Math.round(Math.min(aL, aR) * 100)}%</b> frente a <b>${Math.round(Math.max(aL, aR) * 100)}%</b>). ` +
+        `Practícala sola con el filtro de manos.`);
+    }
+  }
+  if (tips.length){
+    tip.innerHTML = tips.join('<br><br>');
+    tip.style.display = 'block';
   }
 }
 
@@ -221,12 +276,19 @@ function togglePlay(force){
   if (!S.song) return;
   audio();
   if (S.finished) resetRun(S.loopA || 0);
+  const was = S.playing;
   S.playing = force != null ? force : !S.playing;
   $('#playBtn').textContent = S.playing ? '⏸' : '▶';
+  // cuenta de entrada de 4 pulsos al empezar en modo Tocar
+  if (S.playing && !was && S.mode === 'play'){
+    S.countdown = { beats: 4, period: clamp(beatPeriodAt(S.t) / S.rate, 0.25, 1.5), t: 0 };
+    clickSound(true);
+  }
+  if (!S.playing) S.countdown = null;
 }
 function seek(t){
   t = clamp(t, 0, S.song.duration);
-  S.t = t; S.waiting = false; S.required.clear(); S.finished = false;
+  S.t = t; S.waiting = false; S.required.clear(); S.finished = false; S.countdown = null;
   for (const n of S.song.notes){
     if (n.start >= t - 0.05){ n.hit = false; n.missed = false; }
     else if (!n.hit && !n.missed) n.hit = true;
@@ -360,6 +422,15 @@ $('#nameBtn').onclick = () => {
   S.names = S.names === 'es' ? 'en' : S.names === 'en' ? 'off' : 'es';
   $('#nameBtn').textContent = S.names === 'es' ? '♪ Do-Re-Mi' : S.names === 'en' ? '♪ C-D-E' : '♪ sin nombres';
 };
+$('#metBtn').onclick = () => {
+  S.metro = !S.metro;
+  Progress.data.metro = S.metro; Progress.save();
+  $('#metBtn').classList.toggle('primary', S.metro);
+  toast(S.metro ? 'Metrónomo activado ⏱ (acento en el primer pulso del compás)' : 'Metrónomo desactivado');
+  audio();
+};
+$('#metBtn').classList.toggle('primary', S.metro);
+
 function updSndBtn(){
   $('#sndBtn').textContent = S.midiSound ? '🔊 Teclas: app + piano' : '🔇 Teclas: solo tu piano';
 }

@@ -103,17 +103,20 @@ function parseMidiFile(buf){
   notes.sort((a,b) => a.start - b.start);
   pedal.sort((a,b) => a.t - b.t);
 
-  // Líneas de compás a partir del compás del archivo (4/4 si no hay)
+  // Líneas de compás y pulsos de metrónomo a partir del compás del archivo (4/4 si no hay)
   const sigs = timesigs.length && timesigs[0].tick === 0 ? timesigs : [{ tick: 0, num: 4, den: 4 }, ...timesigs];
   sigs.sort((a,b) => a.tick - b.tick);
-  const bars = [];
+  const bars = [], clicks = [];
   for (let i = 0; i < sigs.length && bars.length < 4000; i++){
-    const step = sigs[i].num * div * 4 / sigs[i].den;
-    if (step <= 0) continue;
+    const beatTicks = div * 4 / sigs[i].den;
+    const step = sigs[i].num * beatTicks;
+    if (step <= 0 || beatTicks <= 0) continue;
     const segEnd = i + 1 < sigs.length ? sigs[i+1].tick : maxTick;
     for (let t = sigs[i].tick; t < segEnd && bars.length < 4000; t += step) bars.push(t2s(t));
+    for (let t = sigs[i].tick, k = 0; t < segEnd && clicks.length < 8000; t += beatTicks, k++)
+      clicks.push({ t: t2s(t), accent: k % sigs[i].num === 0 });
   }
 
   const duration = notes.reduce((mx,n) => Math.max(mx, n.start + n.dur), 0);
-  return { notes, pedal, duration, bars };
+  return { notes, pedal, duration, bars, clicks };
 }
