@@ -25,6 +25,17 @@ python3 -m http.server 8000   # o: npx serve
 > la app de forma nativa). Sin teclado MIDI se puede tocar el piano táctil
 > de la pantalla.
 
+### Sonido al tocar con un piano conectado
+
+Un piano conectado por MIDI ya suena por sus propios altavoces; si la app
+volviera a sintetizar cada tecla, ambos sonidos se superpondrían con unos
+milisegundos de retardo y se percibiría eco o distorsión. Por eso, por
+defecto, **tus teclas suenan solo por tu piano** y la app reserva su
+sintetizador para el acompañamiento y el modo Escuchar. El botón
+«🔇 Teclas: solo tu piano / 🔊 Teclas: app + piano» permite cambiarlo
+(útil si silencias el piano o usas un teclado controlador sin altavoces;
+en ese caso también puedes desactivar *Local Control* en tu piano).
+
 ## Qué incluye
 
 - **Entrada MIDI en vivo**: teclas con velocidad y pedal de resonancia (CC64).
