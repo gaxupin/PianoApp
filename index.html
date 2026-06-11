@@ -20,6 +20,7 @@
     <option value="junior" selected>🎒 Júnior</option>
     <option value="pro">🚀 Avanzado</option>
   </select>
+  <button class="btn" id="compBtn" title="Editor de composición">✏️ Componer</button>
   <button class="btn" id="trophyBtn" title="Mi progreso">🏆</button>
   <button class="btn" id="fsBtn" title="Pantalla completa (ideal en tablet)">⛶</button>
   <div class="songPick">
@@ -73,6 +74,43 @@
     </div>
   </div>
 
+  <div id="composer">
+    <div class="cmpBar">
+      <input id="cmpTitle" type="text" maxlength="40" aria-label="Título de la composición">
+      <label class="bpmBox">♩=<input id="cmpBpm" type="number" min="40" max="200" value="100"></label>
+      <div class="tabs" id="durTabs" aria-label="Duración de la nota">
+        <button data-d="4" title="Redonda">𝅝</button>
+        <button data-d="2" title="Blanca">𝅗𝅥</button>
+        <button data-d="1" class="sel" title="Negra">♩</button>
+        <button data-d="0.5" title="Corchea">♪</button>
+      </div>
+      <button class="btn mini" id="dotBtn" title="Puntillo (duración ×1,5)">·&nbsp;puntillo</button>
+      <button class="btn mini" id="shpBtn" title="Sostenido al insertar con el ratón">♯</button>
+      <button class="btn mini" id="delBtn" title="Goma de borrar">🧽</button>
+      <button class="btn mini" id="undoBtn" title="Deshacer">↩</button>
+      <span class="spacer"></span>
+      <button class="btn mini" id="cmpPlayBtn">▶ Probar</button>
+      <button class="btn mini primary" id="cmpUseBtn" title="Cargarla en el modo juego">🎮 Practicar</button>
+      <button class="btn mini" id="cmpMidBtn" title="Exportar como archivo MIDI">⬇ .mid</button>
+      <button class="btn mini" id="refBtn" title="Mostrar una foto o PDF de partitura para copiarla">📷 Referencia</button>
+      <input type="file" id="refIn" accept="image/*,.pdf" hidden>
+      <select id="cmpSel" aria-label="Mis composiciones"></select>
+      <button class="btn mini" id="cmpNewBtn">＋ Nueva</button>
+      <button class="btn mini" id="cmpDelBtn" title="Borrar composición">🗑</button>
+      <button class="btn mini" id="cmpCloseBtn">✕ Salir</button>
+    </div>
+    <div id="refWrap">
+      <img id="refImg" alt="Partitura de referencia">
+      <div class="refCtrl">
+        <button class="btn mini" id="refPrev">◀</button>
+        <span id="refPage"></span>
+        <button class="btn mini" id="refNext">▶</button>
+        <button class="btn mini" id="refClose">✕</button>
+      </div>
+    </div>
+    <div id="cmpStage"><canvas id="cmpCv"></canvas></div>
+  </div>
+
   <div id="progressModal">
     <div class="card wide">
       <div class="modalHead">
@@ -114,5 +152,6 @@
 <script src="js/progress.js"></script>
 <script src="js/render.js"></script>
 <script src="js/app.js"></script>
+<script src="js/composer.js"></script>
 </body>
 </html>

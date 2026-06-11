@@ -72,6 +72,16 @@ en ese caso también puedes desactivar *Local Control* en tu piano).
 - **Perfiles por edad** (🧒 Peque / 🎒 Júnior / 🚀 Avanzado): ajustan la
   tolerancia de acierto y los umbrales de estrellas.
 - **Biblioteca propia**: sube tus partituras (ver formatos).
+- **✏️ Modo Componer** (estilo MuseScore): gran pentagrama editable donde se
+  insertan notas con el ratón/dedo o **tocando el teclado MIDI** (entrada por
+  pasos, acordes incluidos), con duraciones, puntillo, sostenidos, goma y
+  deshacer. Las composiciones se guardan en el navegador, se pueden
+  **exportar a .mid** (compatible con MuseScore) y cargar en el modo juego
+  con un clic para practicarlas.
+- **📷 Panel de referencia**: dentro del editor se puede abrir una foto del
+  libro de partituras o un PDF (visor integrado con pdf.js) para copiar la
+  pieza cómodamente — transcripción asistida. La lectura automática de
+  PDF/foto (OMR con Audiveris) está prevista para la fase 2 con backend.
 
 ## Formatos soportados
 
@@ -98,6 +108,7 @@ js/songs.js         Repertorio y ejercicios de demostración
 js/progress.js      Progreso persistente y logros (localStorage)
 js/render.js        Canvas: cascada, partitura, teclado y efectos
 js/app.js           Estado, modos de juego, puntuación e interfaz
+js/composer.js      Editor de composición, exportador .mid y referencia foto/PDF
 ```
 
 ## Hoja de ruta

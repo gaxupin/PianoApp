@@ -112,6 +112,39 @@ footer{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(-
 .ach.locked{opacity:.35;filter:grayscale(1)}
 .ach small{display:block;color:var(--muted);font-size:10px;font-weight:700}
 
+/* ---------- Editor de composición ---------- */
+#composer{
+  position:absolute;inset:0;display:none;flex-direction:column;
+  background:var(--bg);z-index:4
+}
+.cmpBar{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line)
+}
+.cmpBar input[type=text]{
+  background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+  border-radius:10px;padding:5px 9px;font-family:inherit;font-weight:800;font-size:13px;width:150px
+}
+.bpmBox{display:flex;align-items:center;gap:3px;font-size:13px;font-weight:800;color:var(--muted)}
+.bpmBox input{
+  width:54px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:4px 5px;font-family:inherit;font-weight:800;font-size:13px
+}
+#durTabs button{font-size:16px;line-height:1;padding:4px 10px}
+#cmpStage{flex:1;position:relative;min-height:0}
+#cmpCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#refWrap{
+  display:none;height:36%;min-height:120px;background:#15131F;
+  border-bottom:1px solid var(--line);position:relative
+}
+#refImg{width:100%;height:100%;object-fit:contain;display:block}
+.refCtrl{
+  position:absolute;right:8px;top:8px;display:flex;gap:4px;align-items:center;
+  background:rgba(20,17,32,.8);border-radius:10px;padding:3px 6px;
+  font-size:12px;font-weight:800;color:var(--muted)
+}
+body.composing .deck, body.composing footer{display:none}
+
 #toast{
   position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:6;
   background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px 14px;
