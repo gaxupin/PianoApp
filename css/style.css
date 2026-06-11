@@ -122,3 +122,30 @@ footer{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(-
   .logo span.word{display:none}
   select{max-width:38vw}
 }
+
+/* ---------- Apaisado / tablet: barras compactas, máximo escenario ---------- */
+@media (max-height:560px){
+  header{padding:4px 10px;gap:8px}
+  .deck{padding:4px 10px;gap:8px}
+  footer{padding:5px 10px;gap:6px}
+  .logo{font-size:16px}
+  .chip{font-size:11px;padding:3px 8px}
+  .tabs button{padding:4px 9px;font-size:12px}
+  .btn{padding:4px 9px;font-size:12px}
+  .mini{font-size:10px;padding:4px 7px}
+  select{font-size:12px;padding:4px 6px}
+  .stat{min-width:44px}
+  .stat b{font-size:15px}
+  .stat span{font-size:9px}
+  .round{width:36px;height:36px;font-size:15px}
+  .round.play{width:44px;height:44px;font-size:18px}
+  input[type=range]{width:70px}
+  .tempoBox{font-size:11px}
+  #toast{font-size:12px;padding:6px 10px}
+}
+@media (max-height:420px){
+  .stat span{display:none}
+  .timeLbl{min-width:36px;font-size:11px}
+  .chip{display:none}
+  .chip#midiChip{display:inline-flex}
+}

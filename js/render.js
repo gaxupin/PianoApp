@@ -1,6 +1,9 @@
 'use strict';
 /* Renderizado en canvas: vista Cascada (notas que caen, estilo Synthesia),
-   vista Partitura (gran pentagrama que avanza, estilo Flowkey) y el teclado. */
+   vista Partitura (gran pentagrama que avanza, estilo Flowkey), vista Mixta
+   (partitura arriba + cascada abajo) y el teclado.
+   Las vistas dibujan en una región vertical [top, bottom) para poder
+   combinarlas en pantalla. */
 
 const cv = $('#cv'), ctx = cv.getContext('2d');
 let CW = 0, CH = 0, KBTOP = 0, KEYS = [], BLACKH = 0;
@@ -11,7 +14,7 @@ function resize(){
   CW = r.width; CH = r.height;
   cv.width = Math.round(CW * dpr); cv.height = Math.round(CH * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const kbH = clamp(CH * 0.30, 88, 190);
+  const kbH = clamp(CH * 0.30, 80, 190);
   KBTOP = CH - kbH; BLACKH = kbH * 0.62;
   KEYS = [];
   let whites = 0;
@@ -38,15 +41,22 @@ function keyOf(m){ return KEYS.find(k => k.m === m); }
 function draw(){
   ctx.clearRect(0, 0, CW, CH);
 
-  // notas sonando ahora (para iluminar teclas en ambas vistas)
+  // notas sonando ahora (para iluminar teclas en todas las vistas)
   const sounding = new Map();
   if (S.song){
     for (const n of S.song.notes)
       if (n.start <= S.t && n.start + n.dur >= S.t) sounding.set(n.m, n.hand);
   }
 
-  if (S.view === 'staff') drawStaff(sounding);
-  else drawFalling(sounding);
+  if (S.view === 'staff'){
+    drawStaff(sounding, 0, KBTOP);
+  } else if (S.view === 'both'){
+    const split = clamp(KBTOP * 0.42, 110, KBTOP - 90);
+    drawStaff(sounding, 0, split);
+    drawFalling(sounding, split, KBTOP);
+  } else {
+    drawFalling(sounding, 0, KBTOP);
+  }
 
   // teclado
   const kbH = CH - KBTOP;
@@ -89,28 +99,33 @@ function draw(){
 }
 
 /* ---------------- Vista Cascada ---------------- */
-function drawFalling(sounding){
-  const bg = ctx.createLinearGradient(0, 0, 0, KBTOP);
+function drawFalling(sounding, top, bottom){
+  const H = bottom - top;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, top, CW, H); ctx.clip();
+
+  const bg = ctx.createLinearGradient(0, top, 0, bottom);
   bg.addColorStop(0, '#161325'); bg.addColorStop(1, '#1C1830');
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, CW, KBTOP);
-  const spot = ctx.createRadialGradient(CW/2, KBTOP, 40, CW/2, KBTOP, KBTOP);
+  ctx.fillStyle = bg; ctx.fillRect(0, top, CW, H);
+  const spot = ctx.createRadialGradient(CW/2, bottom, 40, CW/2, bottom, H);
   spot.addColorStop(0, 'rgba(255,194,75,0.10)'); spot.addColorStop(1, 'rgba(255,194,75,0)');
-  ctx.fillStyle = spot; ctx.fillRect(0, 0, CW, KBTOP);
+  ctx.fillStyle = spot; ctx.fillRect(0, top, CW, H);
 
   // líneas de octava
   ctx.strokeStyle = 'rgba(255,255,255,0.05)';
   for (const k of KEYS) if (!k.black && k.m % 12 === 0){
-    ctx.beginPath(); ctx.moveTo(k.x, 0); ctx.lineTo(k.x, KBTOP); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(k.x, top); ctx.lineTo(k.x, bottom); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.font = '700 11px Nunito, sans-serif';
-    ctx.fillText('Do' + (Math.floor(k.m / 12) - 1), k.x + 4, KBTOP - 8);
+    ctx.fillText('Do' + (Math.floor(k.m / 12) - 1), k.x + 4, bottom - 8);
   }
 
-  const pps = (KBTOP - 10) / 3.2; // 3,2 s de antelación
+  const lookahead = H > 260 ? 3.2 : 2.4;     // s de antelación visibles
+  const pps = (H - 10) / lookahead;
   if (S.song){
     for (const n of S.song.notes){
-      const yB = KBTOP - (n.start - S.t) * pps;
-      const yT = KBTOP - (n.start + n.dur - S.t) * pps;
-      if (yT > KBTOP + 40 || yB < -20) continue;
+      const yB = bottom - (n.start - S.t) * pps;
+      const yT = bottom - (n.start + n.dur - S.t) * pps;
+      if (yT > bottom + 40 || yB < top - 20) continue;
       const k = keyOf(n.m); if (!k) continue;
       const act = activeHand(n.hand);
       const col = n.hand === 'L' ? (act ? '#5FA8F7' : 'rgba(95,168,247,0.35)') : (act ? '#5CD67F' : 'rgba(92,214,127,0.35)');
@@ -120,7 +135,7 @@ function drawFalling(sounding){
       ctx.save();
       if (n.hit){ ctx.globalAlpha = 0.35; }
       ctx.shadowColor = col; ctx.shadowBlur = n.start <= S.t + 0.15 && !n.hit ? 14 : 6;
-      roundRect(x, Math.min(yT, KBTOP - 4), w, Math.min(h, KBTOP), 6);
+      roundRect(x, Math.min(yT, bottom - 4), w, Math.min(h, H), 6);
       const g = ctx.createLinearGradient(0, yT, 0, yB);
       g.addColorStop(0, col); g.addColorStop(1, deep);
       ctx.fillStyle = g; ctx.fill();
@@ -131,7 +146,7 @@ function drawFalling(sounding){
         ctx.fillStyle = 'rgba(8,20,10,0.85)';
         ctx.font = '800 ' + Math.min(13, w * 0.42) + 'px "Baloo 2", Nunito, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(nm, x + w / 2, Math.min(yB, KBTOP) - 6);
+        ctx.fillText(nm, x + w / 2, Math.min(yB, bottom) - 6);
         ctx.textAlign = 'left';
       }
       ctx.restore();
@@ -141,19 +156,23 @@ function drawFalling(sounding){
   // línea de impacto
   ctx.fillStyle = 'rgba(255,194,75,0.9)';
   ctx.shadowColor = 'rgba(255,194,75,0.8)'; ctx.shadowBlur = 10;
-  ctx.fillRect(0, KBTOP - 2, CW, 3);
+  ctx.fillRect(0, bottom - 2, CW, 3);
   ctx.shadowBlur = 0;
+  ctx.restore();
 }
 
 /* ---------------- Vista Partitura ---------------- */
-function drawStaff(sounding){
-  const H = KBTOP;
-  // papel
-  ctx.fillStyle = '#FBFAF4'; ctx.fillRect(0, 0, CW, H);
+function drawStaff(sounding, top, bottom){
+  const H = bottom - top;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, top, CW, H); ctx.clip();
 
-  const g = clamp(H / 24, 6, 13);             // separación entre líneas
-  const trebleBottom = H * 0.38;              // línea Mi4 (clave de sol)
-  const bassBottom   = H * 0.80;              // línea Sol2 (clave de fa)
+  // papel
+  ctx.fillStyle = '#FBFAF4'; ctx.fillRect(0, top, CW, H);
+
+  const g = clamp(H / 24, 5.5, 13);           // separación entre líneas
+  const trebleBottom = top + H * 0.38;        // línea Mi4 (clave de sol)
+  const bassBottom   = top + H * 0.80;        // línea Sol2 (clave de fa)
   const trebleTop = trebleBottom - 4 * g;
   const pps = clamp(CW / 6.5, 90, 170);       // píxeles por segundo
   const playX = CW * 0.22;
@@ -193,7 +212,7 @@ function drawStaff(sounding){
   ctx.font = (g * 3.6) + 'px serif';
   ctx.fillText('\u{1D122}', 8, bassBottom - g * 0.6);     // 𝄢
 
-  if (!S.song) return;
+  if (!S.song){ ctx.restore(); return; }
 
   for (const n of S.song.notes){
     const x = playX + (n.start - S.t) * pps;
@@ -273,11 +292,14 @@ function drawStaff(sounding){
     ctx.restore();
   }
 
-  // etiquetas de mano
-  ctx.fillStyle = 'rgba(40,40,60,0.45)';
-  ctx.font = '800 11px Nunito, sans-serif';
-  ctx.fillText('MANO DERECHA', CW - 120, trebleTop - 8);
-  ctx.fillText('MANO IZQUIERDA', CW - 124, bassBottom - 4 * g - 8);
+  // etiquetas de mano (solo si hay sitio)
+  if (H > 150){
+    ctx.fillStyle = 'rgba(40,40,60,0.45)';
+    ctx.font = '800 11px Nunito, sans-serif';
+    ctx.fillText('MANO DERECHA', CW - 120, trebleTop - 8);
+    ctx.fillText('MANO IZQUIERDA', CW - 124, bassBottom - 4 * g - 8);
+  }
+  ctx.restore();
 }
 
 /* ---------------- Teclado ---------------- */

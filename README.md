@@ -39,11 +39,15 @@ en ese caso también puedes desactivar *Local Control* en tu piano).
 ## Qué incluye
 
 - **Entrada MIDI en vivo**: teclas con velocidad y pedal de resonancia (CC64).
-- **Dos vistas sincronizadas**:
+- **Tres vistas sincronizadas** (la elección se recuerda):
   - 🌊 **Cascada**: barras de colores que caen hacia el teclado (verde = mano
     derecha, azul = izquierda), con nombres de nota Do-Re-Mi / C-D-E.
   - 🎼 **Partitura**: gran pentagrama (sol + fa) que avanza con cabezal de
     lectura, líneas de compás, alteraciones, plicas y puntillos.
+  - 🎼+🌊 **Mixta**: partitura arriba y cascada abajo a la vez, como
+    Synthesia — ideal para asociar la lectura con las teclas.
+- **Pensada para tablet en horizontal**: barras compactas en pantallas
+  apaisadas y botón ⛶ de pantalla completa.
 - **Tres modos de juego**:
   - ▶ **Escuchar**: reproducción completa para conocer la pieza.
   - 🎯 **Tocar**: tocas a la vez que avanza; puntúa precisión, combos y "perfectas".
