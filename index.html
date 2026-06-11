@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Atril · Aprende piano jugando</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="dot"></span><span class="word">Atril</span></div>
+  <div class="chip" id="midiChip"><span class="lamp" id="midiLamp"></span><span id="midiTxt">MIDI</span></div>
+  <div class="chip" id="pedalChip"><span class="lamp" id="pedalLamp"></span>Pedal</div>
+  <div class="spacer"></div>
+  <select id="profSel" aria-label="Perfil de edad" title="Perfil de edad">
+    <option value="peque">🧒 Peque</option>
+    <option value="junior" selected>🎒 Júnior</option>
+    <option value="pro">🚀 Avanzado</option>
+  </select>
+  <button class="btn" id="trophyBtn" title="Mi progreso">🏆</button>
+  <div class="songPick">
+    <select id="songSel" aria-label="Elegir canción"></select>
+    <button class="btn" id="loadBtn">📂 Subir partitura</button>
+    <input type="file" id="fileIn" accept=".mid,.midi,.musicxml,.xml,.mxl,.mscz,.pdf,.mp3" hidden>
+  </div>
+</header>
+
+<div class="deck">
+  <div class="tabs" id="modeTabs" role="tablist" aria-label="Modo de juego">
+    <button data-m="listen" class="sel">▶ Escuchar</button>
+    <button data-m="play">🎯 Tocar</button>
+    <button data-m="wait">🐢 Espera</button>
+  </div>
+  <div class="tabs hands" id="handTabs" aria-label="Manos">
+    <button data-h="both" class="sel">🙌 Ambas</button>
+    <button data-h="R">✋ Der.</button>
+    <button data-h="L">🤚 Izq.</button>
+  </div>
+  <div class="tabs" id="viewTabs" aria-label="Vista">
+    <button data-v="fall" class="sel">🌊 Cascada</button>
+    <button data-v="staff">🎼 Partitura</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="stat" id="scoreStat"><b id="scoreV">0</b><span>Puntos</span></div>
+  <div class="stat" id="comboStat"><b id="comboV">0</b><span>Combo</span></div>
+  <div class="stat" id="precStat"><b id="precV">—</b><span>Precisión</span></div>
+  <div class="tempoBox">🐇<input type="range" id="tempo" min="50" max="120" value="100"><b id="tempoV">100%</b></div>
+  <button class="btn mini" id="nameBtn" title="Nombres de las notas">♪ Do-Re-Mi</button>
+</div>
+
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="toast"></div>
+
+  <div id="overlay">
+    <div class="card">
+      <div id="ovTitle">¡Canción completada!</div>
+      <div class="stars" id="ovStars"></div>
+      <div id="ovMsg"></div>
+      <div id="ovTip"></div>
+      <div class="ovBtns">
+        <button class="btn" id="ovAgain">🔁 Otra vez</button>
+        <button class="btn primary" id="ovLoop" style="display:none">🎯 Practicar fragmento</button>
+        <button class="btn" id="ovClose">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="progressModal">
+    <div class="card wide">
+      <div class="modalHead">
+        <div id="pmTitle">🏆 Mi progreso</div>
+        <button class="btn mini" id="pmClose">✕</button>
+      </div>
+      <div class="pmStats">
+        <div class="stat big"><b id="pmTotal">0</b><span>Puntos totales</span></div>
+        <div class="stat big"><b id="pmStreak">0</b><span>Días seguidos</span></div>
+        <div class="stat big"><b id="pmSongs">0</b><span>Canciones</span></div>
+      </div>
+      <h3>Canciones</h3>
+      <div id="pmSongList" class="pmList"></div>
+      <h3>Logros</h3>
+      <div id="pmAch" class="achGrid"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <button class="round" id="restartBtn" title="Volver al inicio">⏮</button>
+  <button class="round" id="back5" title="Atrás 5 s">↶5</button>
+  <button class="round play" id="playBtn" title="Reproducir / pausa">▶</button>
+  <button class="round" id="fwd5" title="Adelante 5 s">↷5</button>
+  <span class="timeLbl" id="tNow">0:00</span>
+  <div id="bar"><div id="barFill"></div><div id="barLoop"></div></div>
+  <span class="timeLbl" id="tEnd">0:00</span>
+  <button class="btn mini" id="loopABtn" title="Marcar inicio de bucle">A</button>
+  <button class="btn mini" id="loopBBtn" title="Marcar fin de bucle">B</button>
+  <button class="btn mini" id="loopXBtn" style="display:none">✕ bucle</button>
+</footer>
+
+<script src="js/util.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/midi-input.js"></script>
+<script src="js/midi-file.js"></script>
+<script src="js/musicxml.js"></script>
+<script src="js/songs.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
