@@ -74,10 +74,16 @@ en ese caso también puedes desactivar *Local Control* en tu piano).
 - **Biblioteca propia**: sube tus partituras (ver formatos).
 - **✏️ Modo Componer** (estilo MuseScore): gran pentagrama editable donde se
   insertan notas con el ratón/dedo o **tocando el teclado MIDI** (entrada por
-  pasos, acordes incluidos), con duraciones, puntillo, sostenidos, goma y
-  deshacer. Las composiciones se guardan en el navegador, se pueden
-  **exportar a .mid** (compatible con MuseScore) y cargar en el modo juego
-  con un clic para practicarlas.
+  pasos, acordes incluidos), con duraciones, puntillo, goma y deshacer.
+  Elementos de notación: **silencios** (redonda a corchea, con puntillo),
+  **cifra de compás** (4/4, 3/4, 2/4, 6/8), **armadura/tonalidad** de Mi♭ a
+  La mayor con alteración automática al insertar (y ♯/♭/♮ manuales),
+  **barras de repetición 𝄆 𝄇** que se despliegan al reproducir y exportar,
+  **dinámicas p/mf/f** (por MIDI se captura la velocidad real de cada tecla)
+  y un asistente de **tríadas** que inserta el acorde diatónico completo con
+  un clic. Las composiciones se guardan en el navegador, se pueden
+  **exportar a .mid** (con compás y armadura; compatible con MuseScore) y
+  cargar en el modo juego con un clic para practicarlas.
 - **📷 Panel de referencia**: dentro del editor se puede abrir una foto del
   libro de partituras o un PDF (visor integrado con pdf.js) para copiar la
   pieza cómodamente — transcripción asistida. La lectura automática de

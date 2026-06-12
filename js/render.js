@@ -211,6 +211,8 @@ function drawStaff(sounding, top, bottom){
   ctx.fillText('\u{1D11E}', 6, trebleBottom + g * 1.1);   // 𝄞
   ctx.font = (g * 3.6) + 'px serif';
   ctx.fillText('\u{1D122}', 8, bassBottom - g * 0.6);     // 𝄢
+  const songKey = (S.song && S.song.key) || 0;
+  drawKeySigOn(ctx, songKey, trebleBottom, bassBottom, g);
 
   if (!S.song){ ctx.restore(); return; }
 
@@ -219,7 +221,7 @@ function drawStaff(sounding, top, bottom){
     if (x < -60 || x > CW + 60) continue;
 
     const useBass = n.hand === 'L';
-    const { d, sharp } = diatonicOf(n.m);
+    const { d, shown } = spellNote(n.m, songKey);
     const baseD = useBass ? DIA_G2 : DIA_E4;
     const baseY = useBass ? bassBottom : trebleBottom;
     const rel = d - baseD;                    // posición diatónica relativa a la línea inferior
@@ -276,11 +278,11 @@ function drawStaff(sounding, top, bottom){
       }
     }
 
-    // alteración
-    if (sharp){
+    // alteración (según la armadura: ♯ ♭ o becuadro)
+    if (shown){
       ctx.fillStyle = color;
       ctx.font = '700 ' + (g * 1.8) + 'px serif';
-      ctx.fillText('♯', x - g * 2.1, y + g * 0.62);
+      ctx.fillText(shown, x - g * 2.1, y + g * 0.62);
     }
 
     // nota esperada en modo Espera: anillo que late en el cabezal
@@ -325,6 +327,23 @@ function drawKey(k, kbH, sounding){
     ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.font = '700 10px Nunito, sans-serif';
     ctx.fillText('Do' + (Math.floor(k.m / 12) - 1), k.x + 3, KBTOP + kbH - 6);
   }
+}
+
+// Armadura (sostenidos o bemoles) sobre los dos pentagramas; devuelve el ancho usado
+function drawKeySigOn(c, key, trebleBottom, bassBottom, g, x0 = 30){
+  if (!key) return x0;
+  const kind = key > 0 ? 'sharp' : 'flat';
+  const sym = key > 0 ? '♯' : '♭';
+  const n = Math.min(7, Math.abs(key));
+  c.font = '700 ' + (g * 1.9) + 'px serif';
+  for (const [staff, baseY, baseD] of [['treble', trebleBottom, DIA_E4], ['bass', bassBottom, DIA_G2]]){
+    for (let i = 0; i < n; i++){
+      const d = diaOfName(KEYSIG_POS[kind][staff][i]);
+      const y = baseY - (d - baseD) * g / 2;
+      c.fillText(sym, x0 + i * g * 0.85, y + g * 0.6);
+    }
+  }
+  return x0 + n * g * 0.85 + 8;
 }
 
 let pulseT = 0;

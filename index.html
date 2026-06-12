@@ -78,14 +78,42 @@
     <div class="cmpBar">
       <input id="cmpTitle" type="text" maxlength="40" aria-label="Título de la composición">
       <label class="bpmBox">♩=<input id="cmpBpm" type="number" min="40" max="200" value="100"></label>
+      <select id="cmpTs" title="Cifra de compás">
+        <option value="4/4">4/4</option>
+        <option value="3/4">3/4</option>
+        <option value="2/4">2/4</option>
+        <option value="6/8">6/8</option>
+      </select>
+      <select id="cmpKey" title="Tonalidad (armadura)">
+        <option value="-3">Mi♭ M</option>
+        <option value="-2">Si♭ M</option>
+        <option value="-1">Fa M</option>
+        <option value="0" selected>Do M</option>
+        <option value="1">Sol M</option>
+        <option value="2">Re M</option>
+        <option value="3">La M</option>
+      </select>
       <div class="tabs" id="durTabs" aria-label="Duración de la nota">
         <button data-d="4" title="Redonda">𝅝</button>
         <button data-d="2" title="Blanca">𝅗𝅥</button>
         <button data-d="1" class="sel" title="Negra">♩</button>
         <button data-d="0.5" title="Corchea">♪</button>
       </div>
-      <button class="btn mini" id="dotBtn" title="Puntillo (duración ×1,5)">·&nbsp;puntillo</button>
-      <button class="btn mini" id="shpBtn" title="Sostenido al insertar con el ratón">♯</button>
+      <button class="btn mini" id="dotBtn" title="Puntillo (duración ×1,5)">·&nbsp;punt.</button>
+      <div class="tabs" id="accTabs" aria-label="Alteración al insertar con el ratón">
+        <button data-a="#" title="Sostenido">♯</button>
+        <button data-a="b" title="Bemol">♭</button>
+        <button data-a="nat" title="Becuadro (anula la armadura)">♮</button>
+      </div>
+      <button class="btn mini" id="restBtn" title="Insertar silencio en el cursor y avanzar">𝄽 Silencio</button>
+      <button class="btn mini" id="triadBtn" title="Asistente de acordes: el clic inserta la tríada completa">🎹 Tríada</button>
+      <button class="btn mini" id="repABtn" title="Abrir repetición en el compás del cursor">𝄆</button>
+      <button class="btn mini" id="repBBtn" title="Cerrar repetición tras el compás del cursor">𝄇</button>
+      <select id="dynSel" title="Dinámica de las notas nuevas">
+        <option value="45">𝆏 piano</option>
+        <option value="80" selected>𝆐𝆑 mezzo</option>
+        <option value="108">𝆑 forte</option>
+      </select>
       <button class="btn mini" id="delBtn" title="Goma de borrar">🧽</button>
       <button class="btn mini" id="undoBtn" title="Deshacer">↩</button>
       <span class="spacer"></span>
