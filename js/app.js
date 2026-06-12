@@ -133,7 +133,7 @@ function step(dt){
   // notas automáticas (acompañamiento o reproducción completa)
   for (const n of S.song.notes){
     if (n.start > prev && n.start <= next && autoplayHand(n.hand)){
-      synthOn(n.m, 0.55 + (n.hand === 'L' ? 0 : 0.1));
+      synthOn(n.m, n.vel ? n.vel / 127 : 0.55 + (n.hand === 'L' ? 0 : 0.1));
       setTimeout(() => { releaseNote(n.m); }, (n.dur / S.rate) * 1000);
     }
   }
@@ -164,7 +164,11 @@ function userPress(m, vel = 0.8, fromMidi = false){
   if (!fromMidi || S.midiSound) synthOn(m, vel);
   S.pressed.add(m);
   // en modo composición, las teclas insertan notas en la partitura
-  if (typeof Composer !== 'undefined' && Composer.active){ Composer.notePress(m); return; }
+  // (con la velocidad real de la pulsación como dinámica)
+  if (typeof Composer !== 'undefined' && Composer.active){
+    Composer.notePress(m, Math.round(clamp(vel, 0.05, 1) * 127));
+    return;
+  }
   if (!S.song) return;
   if (S.mode === 'wait' && S.waiting){
     if (S.required.has(m) && !S.required.get(m)){

@@ -1,18 +1,20 @@
 'use strict';
 /* Editor de composición ("Componer"): gran pentagrama editable estilo MuseScore.
    - Insertar notas con clic o con el teclado MIDI (entrada por pasos, con acordes)
-   - Duraciones, puntillo, sostenido, goma, deshacer
+   - Duraciones, puntillo, alteraciones ♯/♭/♮, goma, deshacer, tríadas con un clic
+   - Silencios explícitos, cifra de compás (4/4, 3/4, 2/4, 6/8), armadura/tonalidad
+     con alteración automática, barras de repetición 𝄆 𝄇 y dinámicas p/mf/f
    - Composiciones guardadas en localStorage, exportación a .mid
    - Panel de referencia: foto o PDF de una partitura para copiarla a mano
    - "Practicar": convierte la composición en canción del modo juego */
 
 const Composer = {
   active: false,
-  comps: [],            // [{ id, title, bpm, notes:[{m,startBeat,beats,hand}] }]
+  comps: [],            // [{ id, title, bpm, key, timesig, notes, rests, repStarts, repEnds }]
   cur: null,            // composición en edición
   cursorBeat: 0,
   scrollBeat: 0,
-  tool: { dur: 1, dot: false, sharp: false, eraser: false },
+  tool: { dur: 1, dot: false, acc: null, eraser: false, triad: false, vel: 80 },
   held: new Set(), groupStart: 0,
   undoStack: [],
   playTimers: [], playingPrev: false,
@@ -28,18 +30,30 @@ const Composer = {
   save(){
     try{ localStorage.setItem(this.KEY, JSON.stringify(this.comps)); }catch(e){}
   },
+  migrate(c){
+    c.key = c.key || 0;
+    c.timesig = c.timesig || { num: 4, den: 4 };
+    c.rests = c.rests || [];
+    c.repStarts = c.repStarts || [];
+    c.repEnds = c.repEnds || [];
+    for (const n of c.notes) if (!n.vel) n.vel = 80;
+    return c;
+  },
   newComp(){
-    const c = { id: Date.now(), title: 'Mi canción ' + (this.comps.length + 1), bpm: 100, notes: [] };
+    const c = this.migrate({ id: Date.now(), title: 'Mi canción ' + (this.comps.length + 1), bpm: 100, notes: [] });
     this.comps.push(c); this.save();
     this.select(c.id);
   },
   select(id){
     this.cur = this.comps.find(c => c.id === id) || this.comps[0] || null;
     if (!this.cur){ this.newComp(); return; }
+    this.migrate(this.cur);
     this.cursorBeat = this.maxBeat(); this.scrollBeat = Math.max(0, this.cursorBeat - 8);
     this.undoStack = [];
     $('#cmpTitle').value = this.cur.title;
     $('#cmpBpm').value = this.cur.bpm;
+    $('#cmpTs').value = this.cur.timesig.num + '/' + this.cur.timesig.den;
+    $('#cmpKey').value = this.cur.key;
     this.rebuildSel();
     this.draw();
   },
@@ -54,51 +68,104 @@ const Composer = {
     if (this.cur) sel.value = this.cur.id;
   },
   maxBeat(){
-    return this.cur && this.cur.notes.length
-      ? Math.max(...this.cur.notes.map(n => n.startBeat + n.beats)) : 0;
+    if (!this.cur) return 0;
+    const n = this.cur.notes.length ? Math.max(...this.cur.notes.map(n => n.startBeat + n.beats)) : 0;
+    const r = this.cur.rests.length ? Math.max(...this.cur.rests.map(x => x.startBeat + x.beats)) : 0;
+    return Math.max(n, r);
+  },
+  beatsPerBar(){
+    const ts = this.cur.timesig;
+    return ts.num * 4 / ts.den;
   },
 
   /* ---------------- Edición ---------------- */
   snapshot(){
-    this.undoStack.push(JSON.stringify(this.cur.notes));
+    this.undoStack.push(JSON.stringify({
+      notes: this.cur.notes, rests: this.cur.rests,
+      repStarts: this.cur.repStarts, repEnds: this.cur.repEnds
+    }));
     if (this.undoStack.length > 60) this.undoStack.shift();
   },
   undo(){
     const s = this.undoStack.pop();
     if (s == null){ toast('Nada que deshacer'); return; }
-    this.cur.notes = JSON.parse(s);
+    Object.assign(this.cur, JSON.parse(s));
     this.save(); this.draw();
   },
   curDur(){ return this.tool.dur * (this.tool.dot ? 1.5 : 1); },
-  addNote(m, startBeat, hand){
+
+  // diatónica -> midi aplicando armadura o la alteración elegida (♯/♭/♮)
+  diaToMidi(d){
+    const li = ((d % 7) + 7) % 7;
+    const oct = Math.floor(d / 7);
+    const acc = this.tool.acc;
+    const alter = acc === '#' ? 1 : acc === 'b' ? -1 : acc === 'nat' ? 0 : keyAlterOfLetter(li, this.cur.key);
+    return clamp((oct + 1) * 12 + LSEMI[li] + alter, 21, 108);
+  },
+
+  addNote(m, startBeat, hand, vel){
     m = clamp(m, 21, 108);
-    const beats = this.curDur();
-    // evita duplicar la misma nota en el mismo sitio
     if (this.cur.notes.some(n => n.m === m && Math.abs(n.startBeat - startBeat) < 0.01)) return;
     this.snapshot();
-    this.cur.notes.push({ m, startBeat, beats, hand });
+    this.cur.notes.push({ m, startBeat, beats: this.curDur(), hand, vel: vel || this.tool.vel });
+    this.save(); this.draw();
+  },
+  // inserta la nota del clic o, con el asistente activado, la tríada diatónica completa
+  addAtDia(d, startBeat, hand){
+    const dias = this.tool.triad ? [d, d + 2, d + 4] : [d];
+    const ms = dias.map(x => this.diaToMidi(x));
+    audio();
+    for (const m of ms){ synthOn(m, 0.6); setTimeout(() => releaseNote(m), 350); }
+    this.snapshot();
+    for (const m of ms){
+      if (!this.cur.notes.some(n => n.m === m && Math.abs(n.startBeat - startBeat) < 0.01))
+        this.cur.notes.push({ m, startBeat, beats: this.curDur(), hand, vel: this.tool.vel });
+    }
+    this.save(); this.draw();
+  },
+  insertRest(){
+    this.snapshot();
+    this.cur.rests.push({ startBeat: this.cursorBeat, beats: this.curDur() });
+    this.cursorBeat += this.curDur();
+    this.autoScroll();
     this.save(); this.draw();
   },
   eraseAt(beat, m){
-    let best = null, bd = 1e9;
+    let best = null, bd = 1e9, list = null;
     for (const n of this.cur.notes){
       if (Math.abs(n.m - m) > 1) continue;
       const d = Math.abs(n.startBeat - beat) + Math.abs(n.m - m) * 0.2;
-      if (d < bd && Math.abs(n.startBeat - beat) < 0.6){ bd = d; best = n; }
+      if (d < bd && Math.abs(n.startBeat - beat) < 0.6){ bd = d; best = n; list = this.cur.notes; }
+    }
+    for (const r of this.cur.rests){
+      const d = Math.abs(r.startBeat - beat) + 0.3;     // las notas tienen prioridad
+      if (d < bd && Math.abs(r.startBeat - beat) < 0.6){ bd = d; best = r; list = this.cur.rests; }
     }
     if (best){
       this.snapshot();
-      this.cur.notes.splice(this.cur.notes.indexOf(best), 1);
+      list.splice(list.indexOf(best), 1);
       this.save(); this.draw();
     }
   },
+  toggleRepeat(kind){
+    const bpb = this.beatsPerBar();
+    const arr = kind === 'start' ? this.cur.repStarts : this.cur.repEnds;
+    const bar = kind === 'start'
+      ? Math.floor(this.cursorBeat / bpb)
+      : Math.max(1, Math.ceil((this.cursorBeat + 0.01) / bpb));
+    this.snapshot();
+    const i = arr.indexOf(bar);
+    if (i >= 0){ arr.splice(i, 1); toast('Repetición quitada del compás ' + (bar + (kind === 'start' ? 1 : 0))); }
+    else { arr.push(bar); arr.sort((a,b) => a - b); toast(kind === 'start' ? '𝄆 Inicio de repetición en el compás ' + (bar + 1) : '𝄇 Fin de repetición tras el compás ' + bar); }
+    this.save(); this.draw();
+  },
 
   // Entrada por pasos desde el teclado MIDI (acorde = teclas superpuestas)
-  notePress(m){
+  notePress(m, vel){
     if (!this.cur || this.tool.eraser) return;
     if (this.held.size === 0) this.groupStart = this.cursorBeat;
     this.held.add(m);
-    this.addNote(m, this.groupStart, m < 60 ? 'L' : 'R');
+    this.addNote(m, this.groupStart, m < 60 ? 'L' : 'R', vel || this.tool.vel);
   },
   noteRelease(m){
     if (!this.held.has(m)) return;
@@ -115,6 +182,33 @@ const Composer = {
     if (this.cursorBeat < this.scrollBeat) this.scrollBeat = Math.max(0, this.cursorBeat - 2);
   },
 
+  /* ---------------- Repeticiones: despliegue de la línea temporal ---------------- */
+  expandNotes(){
+    const bpb = this.beatsPerBar();
+    const maxBeat = this.maxBeat();
+    const starts = [...this.cur.repStarts].sort((a,b) => a - b).map(x => x * bpb);
+    const ends = [...this.cur.repEnds].sort((a,b) => a - b).map(x => x * bpb);
+    const segs = []; let pos = 0;
+    for (const eb of ends){
+      if (eb <= pos || eb > maxBeat + bpb) continue;
+      const cand = starts.filter(x => x < eb);
+      const sb = cand.length ? Math.max(...cand) : 0;   // cada 𝄇 vuelve al último 𝄆 anterior
+      segs.push([pos, eb], [sb, eb]);
+      pos = eb;
+    }
+    segs.push([pos, Math.max(maxBeat, pos) + 1e-3]);
+    const out = []; let acc = 0;
+    for (const [a, b] of segs){
+      if (b <= a) continue;
+      for (const n of this.cur.notes){
+        if (n.startBeat >= a - 1e-9 && n.startBeat < b - 1e-9)
+          out.push({ ...n, startBeat: acc + (n.startBeat - a) });
+      }
+      acc += b - a;
+    }
+    return out.sort((x, y) => x.startBeat - y.startBeat);
+  },
+
   /* ---------------- Reproducción de prueba ---------------- */
   stopPlay(){
     for (const t of this.playTimers) clearTimeout(t);
@@ -125,16 +219,17 @@ const Composer = {
   },
   play(){
     if (this.playingPrev){ this.stopPlay(); return; }
-    if (!this.cur.notes.length){ toast('Añade alguna nota primero 🎵'); return; }
+    const notes = this.expandNotes();
+    if (!notes.length){ toast('Añade alguna nota primero 🎵'); return; }
     audio();
     this.playingPrev = true;
     $('#cmpPlayBtn').textContent = '⏹ Parar';
     const spb = 60 / this.cur.bpm;
     let end = 0;
-    for (const n of this.cur.notes){
+    for (const n of notes){
       const t0 = n.startBeat * spb * 1000, t1 = (n.startBeat + n.beats) * spb * 950;
       end = Math.max(end, t1);
-      this.playTimers.push(setTimeout(() => synthOn(n.m, n.hand === 'L' ? 0.55 : 0.7), t0));
+      this.playTimers.push(setTimeout(() => synthOn(n.m, (n.vel || 80) / 127), t0));
       this.playTimers.push(setTimeout(() => releaseNote(n.m), t1));
     }
     this.playTimers.push(setTimeout(() => this.stopPlay(), end + 400));
@@ -143,14 +238,17 @@ const Composer = {
   /* ---------------- Integración con el modo juego ---------------- */
   toSong(){
     const spb = 60 / this.cur.bpm;
-    const notes = this.cur.notes
-      .map(n => ({ m: n.m, start: n.startBeat * spb, dur: Math.max(0.1, n.beats * spb * 0.92), beats: n.beats, hand: n.hand }))
+    const bpb = this.beatsPerBar();
+    const clickBeat = this.cur.timesig.den === 8 ? 0.5 : 1;
+    const notes = this.expandNotes()
+      .map(n => ({ m: n.m, start: n.startBeat * spb, dur: Math.max(0.1, n.beats * spb * 0.92), beats: n.beats, hand: n.hand, vel: n.vel }))
       .sort((a,b) => a.start - b.start);
     const duration = notes.reduce((mx,n) => Math.max(mx, n.start + n.dur), 0);
     const bars = [], clicks = [];
-    for (let t = 0; t < duration; t += 4 * spb) bars.push(t);
-    for (let b = 0; b * spb < duration; b++) clicks.push({ t: b * spb, accent: b % 4 === 0 });
-    return { title: '✏️ ' + this.cur.title, notes, pedal: [], duration, bars, clicks, cat: 'user' };
+    for (let t = 0; t < duration; t += bpb * spb) bars.push(t);
+    for (let b = 0; b * spb < duration; b += clickBeat)
+      clicks.push({ t: b * spb, accent: Math.abs(b % bpb) < 1e-6 });
+    return { title: '✏️ ' + this.cur.title, notes, pedal: [], duration, bars, clicks, cat: 'user', key: this.cur.key };
   },
   practice(){
     if (!this.cur.notes.length){ toast('Añade alguna nota primero 🎵'); return; }
@@ -167,7 +265,8 @@ const Composer = {
 
   /* ---------------- Exportar .mid ---------------- */
   exportMid(){
-    if (!this.cur.notes.length){ toast('Añade alguna nota primero 🎵'); return; }
+    const notes = this.expandNotes();
+    if (!notes.length){ toast('Añade alguna nota primero 🎵'); return; }
     const TPQ = 480;
     const vlq = n => { const out = [n & 0x7F]; n >>= 7; while (n){ out.unshift(0x80 | (n & 0x7F)); n >>= 7; } return out; };
     const track = evs => {
@@ -178,14 +277,16 @@ const Composer = {
       return [0x4D,0x54,0x72,0x6B, bytes.length >>> 24 & 255, bytes.length >>> 16 & 255, bytes.length >>> 8 & 255, bytes.length & 255, ...bytes];
     };
     const us = Math.round(60000000 / this.cur.bpm);
+    const ts = this.cur.timesig;
     const meta = [
       { tick: 0, prio: 0, data: [0xFF, 0x51, 0x03, us >> 16 & 255, us >> 8 & 255, us & 255] },
-      { tick: 0, prio: 0, data: [0xFF, 0x58, 0x04, 4, 2, 24, 8] }
+      { tick: 0, prio: 0, data: [0xFF, 0x58, 0x04, ts.num, Math.log2(ts.den), 24, 8] },
+      { tick: 0, prio: 0, data: [0xFF, 0x59, 0x02, this.cur.key & 0xFF, 0] }
     ];
     const hands = { R: [], L: [] };
-    for (const n of this.cur.notes){
+    for (const n of notes){
       const on = Math.round(n.startBeat * TPQ), off = Math.round((n.startBeat + n.beats) * TPQ);
-      hands[n.hand].push({ tick: on, prio: 2, data: [0x90, n.m, 80] });
+      hands[n.hand].push({ tick: on, prio: 2, data: [0x90, n.m, clamp(n.vel || 80, 1, 127)] });
       hands[n.hand].push({ tick: off, prio: 1, data: [0x80, n.m, 0] });
     }
     const file = [0x4D,0x54,0x68,0x64, 0,0,0,6, 0,1, 0,3, TPQ >> 8, TPQ & 255,
@@ -196,7 +297,7 @@ const Composer = {
     a.download = this.cur.title.replace(/[^\wáéíóúñÁÉÍÓÚÑ -]/g, '') + '.mid';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast('Exportado como .mid ⬇ (compatible con MuseScore)');
+    toast('Exportado como .mid ⬇ (las repeticiones van desplegadas; compatible con MuseScore)');
   },
 
   /* ---------------- Referencia: foto o PDF ---------------- */
@@ -263,36 +364,61 @@ const Composer = {
       ? { baseD: DIA_E4, baseY: this.trebleBottom, hand: 'R' }
       : { baseD: DIA_G2, baseY: this.bassBottom, hand: 'L' };
   },
-  yToMidi(y){
+  yToDia(y){
     const inf = this.staffYInfo(y);
     const rel = Math.round((inf.baseY - y) / (this.g / 2));
-    const d = inf.baseD + rel;
-    const semis = [0,2,4,5,7,9,11][((d % 7) + 7) % 7];
-    const m = (Math.floor(d / 7) + 1) * 12 + semis + (this.tool.sharp ? 1 : 0);
-    return { m: clamp(m, 21, 108), hand: inf.hand };
+    return { d: inf.baseD + rel, hand: inf.hand };
   },
   midiToY(m, hand){
-    const { d } = diatonicOf(m);
+    const { d } = spellNote(m, this.cur ? this.cur.key : 0);
     const baseD = hand === 'L' ? DIA_G2 : DIA_E4;
     const baseY = hand === 'L' ? this.bassBottom : this.trebleBottom;
     return { y: baseY - (d - baseD) * this.g / 2, rel: d - baseD, baseY };
+  },
+
+  drawRest(c, x, beats, baseY, g){
+    c.fillStyle = '#55516E'; c.strokeStyle = '#55516E';
+    const plain = [4, 2, 1, 0.5].find(v => Math.abs(beats - v) < 0.01 || Math.abs(beats - v * 1.5) < 0.01) || 1;
+    if (plain >= 4){                                       // silencio de redonda: cuelga de la 4ª línea
+      c.fillRect(x - g * 0.8, baseY - 3 * g, g * 1.6, g * 0.5);
+    } else if (plain >= 2){                                // de blanca: apoyado en la 3ª línea
+      c.fillRect(x - g * 0.8, baseY - 2 * g - g * 0.5, g * 1.6, g * 0.5);
+    } else if (plain >= 1){                                // de negra: zigzag
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(x - 2, baseY - 3.3 * g);
+      c.quadraticCurveTo(x + g * 0.8, baseY - 2.7 * g, x - 2, baseY - 2.1 * g);
+      c.quadraticCurveTo(x + g * 0.8, baseY - 1.5 * g, x - 2, baseY - 0.9 * g);
+      c.stroke();
+      c.lineWidth = 1;
+    } else {                                               // de corchea: punto con corchete
+      c.beginPath(); c.arc(x - g * 0.4, baseY - 2.6 * g, g * 0.26, 0, Math.PI * 2); c.fill();
+      c.lineWidth = 2;
+      c.beginPath(); c.moveTo(x - g * 0.2, baseY - 2.5 * g); c.lineTo(x + g * 0.5, baseY - 1.1 * g); c.stroke();
+      c.lineWidth = 1;
+    }
+    if (Math.abs(beats - plain * 1.5) < 0.01){             // puntillo
+      c.beginPath(); c.arc(x + g * 1.2, baseY - 2.4 * g, 2, 0, Math.PI * 2); c.fill();
+    }
   },
 
   draw(){
     if (!this.active || !this.cur) return;
     const c = $('#cmpCv').getContext('2d');
     const g = this.g, W = this.cw, H = this.ch;
+    const bpb = this.beatsPerBar();
     c.clearRect(0, 0, W, H);
     c.fillStyle = '#FBFAF4'; c.fillRect(0, 0, W, H);
 
     const trebleTop = this.trebleBottom - 4 * g;
     const bassTop = this.bassBottom - 4 * g;
+    this.LEFT = 50 + Math.min(7, Math.abs(this.cur.key)) * g * 0.85 + 26;
 
     // regla de compases
     c.fillStyle = '#EFECE2'; c.fillRect(0, 0, W, this.RULER);
-    const firstBar = Math.floor(this.scrollBeat / 4);
+    const firstBar = Math.max(0, Math.floor(this.scrollBeat / bpb));
     for (let bar = firstBar; ; bar++){
-      const b = bar * 4;
+      const b = bar * bpb;
       const x = this.beatToX(b);
       if (x > W) break;
       if (x < this.LEFT - 4) continue;
@@ -302,9 +428,28 @@ const Composer = {
       c.fillText(bar + 1, x + 4, 15);
       // subdivisiones de pulso
       c.strokeStyle = 'rgba(40,40,60,0.10)';
-      for (let k = 1; k < 4; k++){
+      const sub = this.cur.timesig.den === 8 ? 0.5 : 1;
+      for (let k = sub; k < bpb - 1e-6; k += sub){
         const xk = this.beatToX(b + k);
         c.beginPath(); c.moveTo(xk, trebleTop); c.lineTo(xk, this.bassBottom); c.stroke();
+      }
+    }
+
+    // barras de repetición 𝄆 𝄇
+    for (const [arr, isStart] of [[this.cur.repStarts, true], [this.cur.repEnds, false]]){
+      for (const bar of arr){
+        const x = this.beatToX(bar * bpb);
+        if (x < this.LEFT - 20 || x > W + 20) continue;
+        c.fillStyle = '#2A2840';
+        const thick = isStart ? x : x - 4;
+        const thin = isStart ? x + 6 : x - 7;
+        c.fillRect(thick, trebleTop, 4, this.bassBottom - trebleTop);
+        c.fillRect(thin, trebleTop, 1.5, this.bassBottom - trebleTop);
+        const dx = isStart ? x + 11 : x - 12;
+        for (const baseY of [this.trebleBottom, this.bassBottom]){
+          c.beginPath(); c.arc(dx, baseY - 1.5 * g, 2.4, 0, Math.PI * 2); c.fill();
+          c.beginPath(); c.arc(dx, baseY - 2.5 * g, 2.4, 0, Math.PI * 2); c.fill();
+        }
       }
     }
 
@@ -324,6 +469,16 @@ const Composer = {
     c.font = (g * 3.6) + 'px serif';
     c.fillText('\u{1D122}', 8, this.bassBottom - g * 0.6);
 
+    // armadura y cifra de compás
+    c.fillStyle = '#2A2840';
+    const xAfterKey = drawKeySigOn(c, this.cur.key, this.trebleBottom, this.bassBottom, g, 44);
+    c.font = '800 ' + (g * 2.1) + 'px serif'; c.textAlign = 'center';
+    for (const baseY of [this.trebleBottom, this.bassBottom]){
+      c.fillText(this.cur.timesig.num, xAfterKey + g, baseY - 2 * g - 3);
+      c.fillText(this.cur.timesig.den, xAfterKey + g, baseY - 2);
+    }
+    c.textAlign = 'left';
+
     // cursor de inserción
     const cx = this.beatToX(this.cursorBeat);
     if (cx >= this.LEFT - 2 && cx <= W){
@@ -332,13 +487,36 @@ const Composer = {
       c.beginPath(); c.moveTo(cx - 6, this.RULER); c.lineTo(cx + 6, this.RULER); c.lineTo(cx, this.RULER + 8); c.closePath(); c.fill();
     }
 
-    // notas
+    // silencios (en ambos pentagramas)
+    for (const r of this.cur.rests){
+      const x = this.beatToX(r.startBeat) + g * 0.9;
+      if (x < -40 || x > W + 40) continue;
+      this.drawRest(c, x, r.beats, this.trebleBottom, g);
+      this.drawRest(c, x, r.beats, this.bassBottom, g);
+    }
+
+    // notas y dinámicas
+    const sorted = [...this.cur.notes].sort((a,b) => a.startBeat - b.startBeat);
+    const bucket = v => v <= 60 ? 'p' : v <= 95 ? 'mf' : 'f';
+    let lastDyn = null;
+    for (const n of sorted){
+      const x = this.beatToX(n.startBeat) + g * 0.9;
+      if (x >= -40 && x <= W + 40){
+        const dyn = bucket(n.vel || 80);
+        if (dyn !== lastDyn){
+          c.fillStyle = '#7A4A9E';
+          c.font = 'italic 800 ' + (g * 1.6) + 'px serif';
+          c.fillText(dyn, x - g * 0.5, this.bassBottom + g * 2.4);
+        }
+      }
+      lastDyn = bucket(n.vel || 80);
+    }
     for (const n of this.cur.notes){
       const x = this.beatToX(n.startBeat) + g * 0.9;
       if (x < -40 || x > W + 40) continue;
       const { y, rel, baseY } = this.midiToY(n.m, n.hand);
       const color = n.hand === 'L' ? '#2F77C9' : '#2FA85A';
-      const { sharp } = diatonicOf(n.m);
+      const { shown } = spellNote(n.m, this.cur.key);
       // líneas adicionales
       c.strokeStyle = '#43415A';
       for (let k = 10; k <= rel; k += 2){
@@ -370,16 +548,16 @@ const Composer = {
           c.stroke();
         }
       }
-      if (sharp){
+      if (shown){
         c.fillStyle = color;
         c.font = '700 ' + (g * 1.8) + 'px serif';
-        c.fillText('♯', x - g * 2.1, y + g * 0.62);
+        c.fillText(shown, x - g * 2.1, y + g * 0.62);
       }
     }
 
     // pista de ayuda
     c.fillStyle = 'rgba(40,40,60,0.4)'; c.font = '700 11px Nunito, sans-serif';
-    c.fillText(this.tool.eraser ? 'Goma: toca una nota para borrarla' :
+    c.fillText(this.tool.eraser ? 'Goma: toca una nota o silencio para borrarlo' :
       'Toca el pentagrama o tu piano MIDI para añadir notas · arrastra para desplazarte', 10, H - 8);
   },
 
@@ -449,12 +627,13 @@ function ensurePdfJs(){
       if (y <= Composer.RULER + 8){
         Composer.cursorBeat = beat;                  // colocar el cursor
       } else if (Composer.tool.eraser){
-        const { m } = Composer.yToMidi(y);
+        const { d } = Composer.yToDia(y);
+        const li = ((d % 7) + 7) % 7;
+        const m = (Math.floor(d / 7) + 1) * 12 + LSEMI[li];
         Composer.eraseAt(beat, m);
       } else {
-        const { m, hand } = Composer.yToMidi(y);
-        audio(); synthOn(m, 0.6); setTimeout(() => releaseNote(m), 350);
-        Composer.addNote(m, beat, hand);
+        const { d, hand } = Composer.yToDia(y);
+        Composer.addAtDia(d, beat, hand);
         Composer.cursorBeat = beat;
       }
       Composer.draw();
@@ -483,14 +662,33 @@ $('#cmpBpm').onchange = e => {
   e.target.value = Composer.cur.bpm;
   Composer.save();
 };
+$('#cmpTs').onchange = e => {
+  if (!Composer.cur) return;
+  const [num, den] = e.target.value.split('/').map(Number);
+  Composer.cur.timesig = { num, den };
+  Composer.save(); Composer.draw();
+};
+$('#cmpKey').onchange = e => {
+  if (!Composer.cur) return;
+  Composer.cur.key = parseInt(e.target.value) || 0;
+  Composer.save(); Composer.draw();
+};
 $$('#durTabs button').forEach(b => b.onclick = () => {
   Composer.tool.dur = parseFloat(b.dataset.d);
   Composer.tool.eraser = false; $('#delBtn').classList.remove('primary');
   $$('#durTabs button').forEach(x => x.classList.toggle('sel', x === b));
 });
-$('#dotBtn').onclick = e => { Composer.tool.dot = !Composer.tool.dot; e.target.classList.toggle('primary', Composer.tool.dot); };
-$('#shpBtn').onclick = e => { Composer.tool.sharp = !Composer.tool.sharp; e.target.classList.toggle('primary', Composer.tool.sharp); };
-$('#delBtn').onclick = e => { Composer.tool.eraser = !Composer.tool.eraser; e.target.classList.toggle('primary', Composer.tool.eraser); Composer.draw(); };
+$('#dotBtn').onclick = e => { Composer.tool.dot = !Composer.tool.dot; e.currentTarget.classList.toggle('primary', Composer.tool.dot); };
+$$('#accTabs button').forEach(b => b.onclick = () => {
+  Composer.tool.acc = Composer.tool.acc === b.dataset.a ? null : b.dataset.a;
+  $$('#accTabs button').forEach(x => x.classList.toggle('sel', x.dataset.a === Composer.tool.acc));
+});
+$('#triadBtn').onclick = e => { Composer.tool.triad = !Composer.tool.triad; e.currentTarget.classList.toggle('primary', Composer.tool.triad); };
+$('#restBtn').onclick = () => Composer.insertRest();
+$('#repABtn').onclick = () => Composer.toggleRepeat('start');
+$('#repBBtn').onclick = () => Composer.toggleRepeat('end');
+$('#dynSel').onchange = e => { Composer.tool.vel = parseInt(e.target.value); };
+$('#delBtn').onclick = e => { Composer.tool.eraser = !Composer.tool.eraser; e.currentTarget.classList.toggle('primary', Composer.tool.eraser); Composer.draw(); };
 $('#undoBtn').onclick = () => Composer.undo();
 $('#cmpPlayBtn').onclick = () => Composer.play();
 $('#cmpUseBtn').onclick = () => Composer.practice();
